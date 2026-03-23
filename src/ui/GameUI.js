@@ -9,9 +9,11 @@ import { PLAYER_CONFIG, SELECTABLE_ANIMALS } from '../engine/constants.js';
  *  - Win modal
  */
 export class GameUI {
-  constructor() {
+  /** @param {import('../utils/AudioManager.js').AudioManager} audio */
+  constructor(audio) {
     this._root      = document.getElementById('ui-root');
     this._callbacks = {};
+    this._audio     = audio;
     this._render();
   }
 
@@ -158,12 +160,11 @@ export class GameUI {
             <span id="player-name" class="player-name">Player 1</span>
           </div>
           <div id="dice-face" class="dice-face">⚀</div>
+          <div id="status-msg" class="status-msg"></div>
           <button id="roll-btn" class="roll-btn btn-glow">Roll Dice</button>
           <button id="end-game-btn" class="end-game-btn btn-glow">End Game</button>
+          <button id="mute-btn" class="mute-btn btn-glow">🔊</button>
         </div>
-
-        <!-- Status -->
-        <div id="status-msg" class="status-msg"></div>
 
         <!-- Scoreboard -->
         <div class="scoreboard glass-card">
@@ -202,6 +203,8 @@ export class GameUI {
     // Screen 1: player count → go to screen 2
     this._overlayStep1.querySelectorAll('.player-count-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        this._audio?.resume();
+        this._audio?.playClick();
         this._pendingCount   = Number(btn.dataset.count);
         this._pendingAnimals = new Array(this._pendingCount).fill(null);
         this._buildAnimalPicker(this._pendingCount);
@@ -212,6 +215,7 @@ export class GameUI {
 
     // Screen 2: Back → return to screen 1
     document.getElementById('back-btn').addEventListener('click', () => {
+      this._audio?.playClick();
       this._overlayStep2.classList.add('hidden');
       this._overlayStep1.classList.remove('hidden');
       this._pendingCount   = null;
@@ -220,6 +224,7 @@ export class GameUI {
 
     // Step 2: Start Game
     document.getElementById('start-game-btn').addEventListener('click', () => {
+      this._audio?.playClick();
       this._callbacks.gameStarted?.({
         count:   this._pendingCount,
         animals: this._pendingAnimals.slice(),
@@ -228,11 +233,13 @@ export class GameUI {
 
     // Roll button
     this._rollBtn.addEventListener('click', () => {
+      this._audio?.playClick();
       this._callbacks.rollDice?.();
     });
 
     // End Game button
     document.getElementById('end-game-btn').addEventListener('click', () => {
+      this._audio?.playClick();
       this._hud.classList.add('hidden');
       this._winnerModal.classList.add('hidden');
       this._overlayStep2.classList.add('hidden');
@@ -242,9 +249,19 @@ export class GameUI {
 
     // Restart button
     document.getElementById('restart-btn').addEventListener('click', () => {
+      this._audio?.playClick();
       this._winnerModal.classList.add('hidden');
       this._callbacks.restart?.();
     });
+
+    // Mute button
+    const muteBtn = document.getElementById('mute-btn');
+    if (muteBtn) {
+      muteBtn.addEventListener('click', () => {
+        const muted = this._audio?.toggleMute();
+        muteBtn.textContent = muted ? '🔇' : '🔊';
+      });
+    }
   }
 
   _buildAnimalPicker(count) {
@@ -288,6 +305,7 @@ export class GameUI {
           b.classList.toggle('selected', b === btn);
         });
 
+        this._audio?.playClick();
         document.getElementById(`chosen-${playerIdx}`).textContent = emoji;
 
         // Enable start only when all players have chosen

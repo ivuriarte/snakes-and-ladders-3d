@@ -48,9 +48,10 @@ export class PlayerPieces {
 
   /**
    * Animate piece hopping square-by-square.
+   * @param {Function} [onStep]  Optional callback fired on each square landing.
    * @returns {Promise<void>}
    */
-  animateHop(playerId, from, to) {
+  animateHop(playerId, from, to, onStep) {
     const path = buildHopPath(from, to, PIECE_Y_BASE);
     if (path.length === 0) return Promise.resolve();
 
@@ -79,7 +80,10 @@ export class PlayerPieces {
           z:        dest.z,
           duration: HOP_DURATION / 2,
           ease:     'power2.in',
-          onComplete: () => this._updateGlow(playerId),
+          onComplete: () => {
+            this._updateGlow(playerId);
+            onStep?.();
+          },
         });
     });
 

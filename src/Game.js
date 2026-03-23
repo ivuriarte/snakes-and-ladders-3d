@@ -8,6 +8,7 @@ import { buildEnvironment, tickEnvironment } from './scene/Environment.js';
 import { buildSnakesAndLadders } from './scene/SnakesLadders.js';
 import { PlayerPieces }       from './scene/PlayerPieces.js';
 import { GameUI }             from './ui/GameUI.js';
+import { AudioManager }       from './utils/AudioManager.js';
 
 /**
  * Top-level Game orchestrator.
@@ -24,7 +25,8 @@ export class Game {
     this._setupScene();
     this._setupCamera();
     this._setupOrbitControls();
-    this._ui = new GameUI();
+    this._audio = new AudioManager();
+    this._ui = new GameUI(this._audio);
     this._bindSetup();
     // Wire roll button once — uses this._engine reference so safe across restarts
     this._ui.on('rollDice', () => { this._engine?.rollDice(); });
@@ -53,8 +55,8 @@ export class Game {
 
   _setupCamera() {
     const aspect   = window.innerWidth / window.innerHeight;
-    this._camera   = new THREE.PerspectiveCamera(55, aspect, 0.1, 300);
-    this._camera.position.set(0, 28, 26);
+    this._camera   = new THREE.PerspectiveCamera(48, aspect, 0.1, 300);
+    this._camera.position.set(0, 18, 16);
     this._camera.lookAt(0, 0, 0);
   }
 
@@ -63,8 +65,8 @@ export class Game {
     this._orbit = {
       isDragging: false,
       lastX: 0, lastY: 0,
-      theta: 0, phi: 0.9,
-      radius: 38,
+      theta: 0, phi: 0.72,
+      radius: 22,
       target: new THREE.Vector3(0, 0, 0),
     };
 
@@ -88,7 +90,7 @@ export class Game {
       this._applyOrbit();
     });
     canvas.addEventListener('wheel', (e) => {
-      this._orbit.radius = Math.max(12, Math.min(70, this._orbit.radius + e.deltaY * 0.05));
+      this._orbit.radius = Math.max(10, Math.min(40, this._orbit.radius + e.deltaY * 0.04));
       this._applyOrbit();
     }, { passive: true });
 
@@ -172,6 +174,9 @@ export class Game {
       this._ui.updateScore(p);
     });
 
+    // Start background music
+    this._audio.startMusic();
+
     // Start render loop if not running
     if (!this._rafId) this._loop();
   }
@@ -184,6 +189,7 @@ export class Game {
   _endGame() {
     // Stop engine and clear scene objects so the board is clean on next start
     this._engine = null;
+    this._audio.stopMusic();
     ['board', 'snakes', 'ladders'].forEach((n) => {
       const obj = this._scene.getObjectByName(n);
       if (obj) this._scene.remove(obj);
@@ -201,6 +207,7 @@ export class Game {
     const eng = this._engine;
 
     eng.on('diceRolled', async ({ player, value }) => {
+      this._audio?.playDiceRoll();
       await this._ui.showDiceResult(value);
       this._ui.log(`${player.name} rolled a ${value}`);
       eng.resolveMove();
@@ -208,7 +215,7 @@ export class Game {
 
     eng.on('playerMoved', async ({ player, from, to }) => {
       this._ui.lockInteraction();
-      await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to);
+      await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to, () => this._audio?.playHop());
       this._ui.updateScore(player);
       // Now that the hop animation is done, check snakes/ladders/win
       eng.resolveSpecials();
@@ -220,6 +227,7 @@ export class Game {
 
     eng.on('snakeSlide', async ({ player, from, to }) => {
       this._ui.log(`🐍 ${player.name} hit a snake! ${from} → ${to}`);
+      this._audio?.playSnake();
       await this._pieces.animateSlide(player.id, from, to);
       this._ui.updateScore(player);
       eng.endTurn();
@@ -227,6 +235,7 @@ export class Game {
 
     eng.on('ladderClimb', async ({ player, from, to }) => {
       this._ui.log(`🪜 ${player.name} climbed a ladder! ${from} → ${to}`);
+      this._audio?.playLadder();
       await this._pieces.animateSlide(player.id, from, to);
       this._ui.updateScore(player);
       eng.endTurn();
@@ -236,11 +245,13 @@ export class Game {
       this._ui.setActivePlayer(player);
       this._pieces.highlightActive(player.id);
       this._ui.log(`${player.name}'s turn`);
+      this._audio?.playTurnChange();
       this._ui.unlockInteraction();
     });
 
     eng.on('gameOver', ({ winner }) => {
       this._ui.log(`🏆 ${winner.name} reached square 100 and WINS!`);
+      this._audio?.playWin();
       this._pieces.celebrateWinner(winner.id);
       setTimeout(() => this._ui.showWinner(winner), 1800);
     });
