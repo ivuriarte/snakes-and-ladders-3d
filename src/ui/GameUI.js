@@ -50,13 +50,37 @@ export class GameUI {
     this._statusEl.style.color      = player.hexStr;
   }
 
-  /** Show dice value with brief animation */
+  /** Show dice rolling animation then reveal result */
   showDiceResult(value) {
     this._rollBtn.disabled = true;
-    this._diceEl.textContent = DICE_FACES_MAP[value] || String(value);
-    this._diceEl.classList.remove('dice-pop');
-    void this._diceEl.offsetWidth;  // force reflow
-    this._diceEl.classList.add('dice-pop');
+    const el = this._diceEl;
+    const faces = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+    let ticks = 0;
+    const totalTicks = 14;          // number of random flips
+    const startInterval = 60;       // ms between flips (speeds up)
+    el.classList.remove('dice-pop');
+
+    const spin = (interval) => {
+      if (ticks >= totalTicks) {
+        // Land on the real value
+        el.textContent = faces[value - 1] || String(value);
+        void el.offsetWidth;
+        el.classList.add('dice-land');
+        el.addEventListener('animationend', () => el.classList.remove('dice-land'), { once: true });
+        return;
+      }
+      // Show a random face
+      el.textContent = faces[Math.floor(Math.random() * 6)];
+      el.classList.remove('dice-spin');
+      void el.offsetWidth;
+      el.classList.add('dice-spin');
+      ticks++;
+      // Slow down gradually toward the end
+      const nextInterval = interval + (ticks / totalTicks) * 55;
+      setTimeout(() => spin(nextInterval), interval);
+    };
+
+    spin(startInterval);
   }
 
   /** Add a line to the event log */
@@ -73,7 +97,7 @@ export class GameUI {
   /** Update a player's position in the scoreboard */
   updateScore(player) {
     const el = document.getElementById(`score-player-${player.id}`);
-    if (el) el.querySelector('.score-pos').textContent = `Sq. ${player.position}`;
+    if (el) el.querySelector('.score-pos').textContent = player.position === 0 ? 'START' : `Sq. ${player.position}`;
   }
 
   /** Display win modal */
@@ -122,16 +146,15 @@ export class GameUI {
       <!-- HUD -->
       <div id="hud" class="hud hidden">
 
-        <!-- Current player banner -->
-        <div class="hud-banner glass-card">
-          <span class="turn-label">TURN</span>
-          <span id="player-name" class="player-name">Player 1</span>
-        </div>
-
-        <!-- Dice -->
+        <!-- Dice + player panel — bottom center -->
         <div class="dice-panel glass-card">
+          <div class="dice-player-row">
+            <span class="turn-label">TURN</span>
+            <span id="player-name" class="player-name">Player 1</span>
+          </div>
           <div id="dice-face" class="dice-face">⚀</div>
           <button id="roll-btn" class="roll-btn btn-glow">Roll Dice</button>
+          <button id="end-game-btn" class="end-game-btn btn-glow">End Game</button>
         </div>
 
         <!-- Status -->
@@ -203,11 +226,18 @@ export class GameUI {
       this._callbacks.rollDice?.();
     });
 
-    // Restart button
-    document.getElementById('restart-btn').addEventListener('click', () => {
+    // End Game button
+    document.getElementById('end-game-btn').addEventListener('click', () => {
+      this._hud.classList.add('hidden');
       this._winnerModal.classList.add('hidden');
       this._overlayStep2.classList.add('hidden');
       this._overlayStep1.classList.remove('hidden');
+      this._callbacks.endGame?.();
+    });
+
+    // Restart button
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      this._winnerModal.classList.add('hidden');
       this._callbacks.restart?.();
     });
   }
@@ -278,4 +308,3 @@ export class GameUI {
   }
 }
 
-const DICE_FACES_MAP = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };

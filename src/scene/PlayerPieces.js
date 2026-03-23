@@ -16,9 +16,10 @@ export class PlayerPieces {
    * @param {Array<{id,color,hexStr,animal}>} playerConfigs
    */
   constructor(scene, playerConfigs) {
-    this._scene   = scene;
-    this._pieces  = [];   // THREE.Group per player
-    this._glows   = [];   // glow ring meshes
+    this._scene    = scene;
+    this._pieces   = [];   // THREE.Group per player
+    this._glows    = [];   // glow ring meshes
+    this._winnerId = null; // set during celebrate; prevents tick() conflicts
 
     playerConfigs.forEach((cfg) => {
       const group = _buildAnimalPiece(cfg);
@@ -57,10 +58,11 @@ export class PlayerPieces {
     let   chain = gsap.timeline();
 
     path.forEach((dest, i) => {
+      const prevPos = i === 0 ? piece.position : path[i - 1];
       const peak = new THREE.Vector3(
-        (piece.position.x + dest.x) / 2,
+        (prevPos.x + dest.x) / 2,
         PIECE_Y_BASE + HOP_HEIGHT,
-        (piece.position.z + dest.z) / 2,
+        (prevPos.z + dest.z) / 2,
       );
 
       chain
@@ -136,6 +138,7 @@ export class PlayerPieces {
 
   /** Celebrate winning animation – spin + rise. */
   celebrateWinner(playerId) {
+    this._winnerId = playerId;   // stop tick() from overwriting rotation
     const piece = this._pieces[playerId];
     gsap.killTweensOf(piece.scale);
     gsap.killTweensOf(piece.rotation);
@@ -147,6 +150,7 @@ export class PlayerPieces {
   /** Per-frame idle bob for all pieces. */
   tick(t) {
     this._pieces.forEach((p, i) => {
+      if (i === this._winnerId) return;  // let GSAP own the winner's rotation
       p.rotation.y = t * 0.6 + i * 1.57;
     });
   }

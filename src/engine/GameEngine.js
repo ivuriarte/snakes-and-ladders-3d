@@ -63,7 +63,9 @@ export class GameEngine extends EventEmitter {
 
   /**
    * Called by the scene layer once the dice roll animation completes.
-   * Resolves movement, snake/ladder, turn advancement.
+   * Only calculates destination and emits playerMoved — does NOT yet
+   * check snakes/ladders so the hop animation can fully complete first.
+   * Call resolveSpecials() after the hop finishes.
    */
   resolveMove() {
     if (this._state !== GameState.ROLLING) return;
@@ -72,36 +74,45 @@ export class GameEngine extends EventEmitter {
     const from   = player.position;
     let   to     = from + this._lastRoll;
 
-    // Overshoot rule – bounce back
+    // Overshoot rule – bounce back from 100
     if (to > 100) {
       to = 100 - (to - 100);
     }
 
     this._setState(GameState.MOVING);
     this.emit('playerMoved', { player, from, to });
-
     player.position = to;
+  }
 
-    // Win check
-    if (to === 100) {
+  /**
+   * Called by the scene layer AFTER the hop animation completes.
+   * Checks win condition, snakes, and ladders.
+   */
+  resolveSpecials() {
+    if (this._state !== GameState.MOVING) return;
+
+    const player = this.currentPlayer;
+    const pos    = player.position;
+
+    if (pos === 100) {
       player.finished = true;
       this._setState(GameState.GAME_OVER);
       this.emit('gameOver', { winner: player });
       return;
     }
 
-    // Snake or ladder?
-    if (SNAKES[to] !== undefined) {
-      const dest = SNAKES[to];
+    if (SNAKES[pos] !== undefined) {
+      const dest = SNAKES[pos];
       this._setState(GameState.SNAKE);
-      this.emit('snakeSlide', { player, from: to, to: dest });
+      this.emit('snakeSlide', { player, from: pos, to: dest });
       player.position = dest;
-    } else if (LADDERS[to] !== undefined) {
-      const dest = LADDERS[to];
+    } else if (LADDERS[pos] !== undefined) {
+      const dest = LADDERS[pos];
       this._setState(GameState.LADDER);
-      this.emit('ladderClimb', { player, from: to, to: dest });
+      this.emit('ladderClimb', { player, from: pos, to: dest });
       player.position = dest;
     }
+    // If no special, state stays MOVING — scene layer calls endTurn()
   }
 
   /**

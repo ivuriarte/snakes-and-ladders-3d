@@ -27,6 +27,8 @@ export class Game {
     this._setupOrbitControls();
     this._ui = new GameUI();
     this._bindSetup();
+    // Wire roll button once — uses this._engine reference so safe across restarts
+    this._ui.on('rollDice', () => { this._engine?.rollDice(); });
     this._clock = new THREE.Clock();
   }
 
@@ -124,6 +126,7 @@ export class Game {
     this._ui.showSetup();
     this._ui.on('gameStarted', ({ count, animals }) => this._startGame(count, animals));
     this._ui.on('restart', () => this._restartGame());
+    this._ui.on('endGame', () => this._endGame());
   }
 
   _startGame(playerCount, animals = []) {
@@ -160,13 +163,11 @@ export class Game {
     this._engine.players.forEach((p, i) => { p.animal = animals[i] ?? '🦁'; });
 
     this._bindEngineEvents();
-    // Wire roll button to current engine instance
-    this._ui.on('rollDice', () => { this._engine?.rollDice(); });
     this._ui.showHUD(this._playerConfigs);
     this._ui.setActivePlayer(this._engine.currentPlayer);
     this._pieces.highlightActive(this._engine.currentPlayer.id);
 
-    // Place pieces at square 1 start
+    // Place pieces at square 1 start (engine keeps position=0 = off-board until first roll)
     this._engine.players.forEach((p) => {
       this._pieces.snapTo(p.id, 1);
       this._ui.updateScore(p);
@@ -181,6 +182,20 @@ export class Game {
     this._startGame(this._engine.players.length, animals);
   }
 
+  _endGame() {
+    // Stop engine and clear scene objects so the board is clean on next start
+    this._engine = null;
+    ['board', 'snakes', 'ladders'].forEach((n) => {
+      const obj = this._scene.getObjectByName(n);
+      if (obj) this._scene.remove(obj);
+    });
+    if (this._pieces) {
+      this._pieces._pieces.forEach((p) => this._scene.remove(p));
+      this._pieces._glows.forEach((g)  => this._scene.remove(g));
+      this._pieces = null;
+    }
+  }
+
   // ─── Engine event bindings ─────────────────────────────────────────────────
 
   _bindEngineEvents() {
@@ -189,7 +204,6 @@ export class Game {
     eng.on('diceRolled', ({ player, value }) => {
       this._ui.showDiceResult(value);
       this._ui.log(`${player.name} rolled a ${value}`);
-
       // After dice animation window, resolve move
       setTimeout(() => eng.resolveMove(), DICE_ROLL_DURATION_MS);
     });
@@ -197,10 +211,10 @@ export class Game {
     eng.on('playerMoved', async ({ player, from, to }) => {
       this._ui.lockInteraction();
       await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to);
-      player.position = to;
       this._ui.updateScore(player);
-      // Engine state may have changed to SNAKE/LADDER — endTurn
-      // is called after slide animations in the snake/ladder handlers.
+      // Now that the hop animation is done, check snakes/ladders/win
+      eng.resolveSpecials();
+      // If no special was triggered, end the turn
       if (eng.state === GameState.MOVING) {
         eng.endTurn();
       }

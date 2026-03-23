@@ -87,12 +87,14 @@ function _buildTileTexture(sq) {
               : sq === 100  ? '👑'
               : SNAKES[sq]  ? '🐍'
               : LADDERS[sq] ? '🪜'
-              : ANIMALS[(sq - 1) % ANIMALS.length];
+              : null;
 
-  ctx.font         = `${S * 0.48}px serif`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, S / 2, S * 0.48);
+  if (emoji) {
+    ctx.font         = `${S * 0.48}px serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, S / 2, S * 0.48);
+  }
 
   // ── Square number ─────────────────────────────────────────────────────────
   const label  = sq === 1 ? 'START' : sq === 100 ? 'FINISH' : String(sq);
@@ -119,8 +121,8 @@ function _roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ─── Tile meshes with animal canvas textures ──────────────────────────────────
-function _addAnimalTiles(group) {
+// ─── Tile meshes ─────────────────────────────────────────────────────────────
+function _addTiles(group) {
   const tileGeo = new THREE.BoxGeometry(CELL_SIZE * 0.97, 0.22, CELL_SIZE * 0.97);
 
   // Shared side/bottom material (dark wood)
