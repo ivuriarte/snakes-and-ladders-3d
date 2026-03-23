@@ -25,15 +25,15 @@ export class GameUI {
 
   /** Show the player-count setup screen (step 1) */
   showSetup() {
-    this._step1.classList.remove('hidden');
-    this._step2.classList.add('hidden');
-    this._setupOverlay.classList.remove('hidden');
+    this._overlayStep1.classList.remove('hidden');
+    this._overlayStep2.classList.add('hidden');
     this._hud.classList.add('hidden');
   }
 
-  /** Hide setup screen and show HUD */
+  /** Hide setup screens and show HUD */
   showHUD(playerConfigs) {
-    this._setupOverlay.classList.add('hidden');
+    this._overlayStep1.classList.add('hidden');
+    this._overlayStep2.classList.add('hidden');
     this._hud.classList.remove('hidden');
     this._buildScoreboard(playerConfigs);
   }
@@ -92,11 +92,9 @@ export class GameUI {
 
   _render() {
     this._root.innerHTML = `
-      <!-- Setup overlay -->
-      <div id="setup-overlay" class="overlay">
-
-        <!-- Step 1: player count -->
-        <div id="setup-step1" class="setup-card glass-card">
+      <!-- Screen 1: choose number of players -->
+      <div id="overlay-step1" class="overlay">
+        <div class="setup-card glass-card">
           <h1 class="game-title">🌿 Snakes &amp; Ladders 3D</h1>
           <p class="subtitle">How many players?</p>
           <div class="player-btns">
@@ -106,9 +104,11 @@ export class GameUI {
               </button>`).join('')}
           </div>
         </div>
+      </div>
 
-        <!-- Step 2: animal picker per player -->
-        <div id="setup-step2" class="setup-card glass-card hidden" style="max-width:560px">
+      <!-- Screen 2: choose animal per player -->
+      <div id="overlay-step2" class="overlay hidden">
+        <div class="setup-card glass-card" style="max-width:580px">
           <div class="step2-header">
             <button id="back-btn" class="back-btn btn-glow">← Back</button>
             <h2 class="game-title" style="font-size:1.6rem">Choose your animals 🐾</h2>
@@ -117,7 +117,6 @@ export class GameUI {
           <div id="player-slots"></div>
           <button id="start-game-btn" class="btn-glow start-btn" disabled>Start Game 🌿</button>
         </div>
-
       </div>
 
       <!-- HUD -->
@@ -162,9 +161,8 @@ export class GameUI {
       </div>
     `;
 
-    this._setupOverlay = document.getElementById('setup-overlay');
-    this._step1        = document.getElementById('setup-step1');
-    this._step2        = document.getElementById('setup-step2');
+    this._overlayStep1 = document.getElementById('overlay-step1');
+    this._overlayStep2 = document.getElementById('overlay-step2');
     this._hud          = document.getElementById('hud');
     this._playerNameEl = document.getElementById('player-name');
     this._diceEl       = document.getElementById('dice-face');
@@ -173,21 +171,21 @@ export class GameUI {
     this._winnerModal  = document.getElementById('winner-modal');
     this._logList      = document.getElementById('event-log');
 
-    // Step 1: player count → show step 2 animal picker
-    this._setupOverlay.querySelectorAll('.player-count-btn').forEach((btn) => {
+    // Screen 1: player count → go to screen 2
+    this._overlayStep1.querySelectorAll('.player-count-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        this._pendingCount = Number(btn.dataset.count);
+        this._pendingCount   = Number(btn.dataset.count);
         this._pendingAnimals = new Array(this._pendingCount).fill(null);
         this._buildAnimalPicker(this._pendingCount);
-        this._step1.classList.add('hidden');
-        this._step2.classList.remove('hidden');
+        this._overlayStep1.classList.add('hidden');
+        this._overlayStep2.classList.remove('hidden');
       });
     });
 
-    // Step 2: Back button
+    // Screen 2: Back → return to screen 1
     document.getElementById('back-btn').addEventListener('click', () => {
-      this._step2.classList.add('hidden');
-      this._step1.classList.remove('hidden');
+      this._overlayStep2.classList.add('hidden');
+      this._overlayStep1.classList.remove('hidden');
       this._pendingCount   = null;
       this._pendingAnimals = [];
     });
@@ -208,9 +206,8 @@ export class GameUI {
     // Restart button
     document.getElementById('restart-btn').addEventListener('click', () => {
       this._winnerModal.classList.add('hidden');
-      // Reset step 1
-      this._step1.classList.remove('hidden');
-      this._step2.classList.add('hidden');
+      this._overlayStep2.classList.add('hidden');
+      this._overlayStep1.classList.remove('hidden');
       this._callbacks.restart?.();
     });
   }
