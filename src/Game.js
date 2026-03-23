@@ -8,7 +8,6 @@ import { buildEnvironment, tickEnvironment } from './scene/Environment.js';
 import { buildSnakesAndLadders } from './scene/SnakesLadders.js';
 import { PlayerPieces }       from './scene/PlayerPieces.js';
 import { GameUI }             from './ui/GameUI.js';
-import { DICE_ROLL_DURATION_MS } from './engine/constants.js';
 
 /**
  * Top-level Game orchestrator.
@@ -201,11 +200,10 @@ export class Game {
   _bindEngineEvents() {
     const eng = this._engine;
 
-    eng.on('diceRolled', ({ player, value }) => {
-      this._ui.showDiceResult(value);
+    eng.on('diceRolled', async ({ player, value }) => {
+      await this._ui.showDiceResult(value);
       this._ui.log(`${player.name} rolled a ${value}`);
-      // After dice animation window, resolve move
-      setTimeout(() => eng.resolveMove(), DICE_ROLL_DURATION_MS);
+      eng.resolveMove();
     });
 
     eng.on('playerMoved', async ({ player, from, to }) => {

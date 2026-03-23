@@ -50,7 +50,7 @@ export class GameUI {
     this._statusEl.style.color      = player.hexStr;
   }
 
-  /** Show dice rolling animation then reveal result */
+  /** Show dice rolling animation then reveal result. Returns a Promise that resolves when animation completes. */
   showDiceResult(value) {
     this._rollBtn.disabled = true;
     const el = this._diceEl;
@@ -60,27 +60,32 @@ export class GameUI {
     const startInterval = 60;       // ms between flips (speeds up)
     el.classList.remove('dice-pop');
 
-    const spin = (interval) => {
-      if (ticks >= totalTicks) {
-        // Land on the real value
-        el.textContent = faces[value - 1] || String(value);
+    return new Promise((resolve) => {
+      const spin = (interval) => {
+        if (ticks >= totalTicks) {
+          // Land on the real value
+          el.textContent = faces[value - 1] || String(value);
+          void el.offsetWidth;
+          el.classList.add('dice-land');
+          el.addEventListener('animationend', () => {
+            el.classList.remove('dice-land');
+            resolve();
+          }, { once: true });
+          return;
+        }
+        // Show a random face
+        el.textContent = faces[Math.floor(Math.random() * 6)];
+        el.classList.remove('dice-spin');
         void el.offsetWidth;
-        el.classList.add('dice-land');
-        el.addEventListener('animationend', () => el.classList.remove('dice-land'), { once: true });
-        return;
-      }
-      // Show a random face
-      el.textContent = faces[Math.floor(Math.random() * 6)];
-      el.classList.remove('dice-spin');
-      void el.offsetWidth;
-      el.classList.add('dice-spin');
-      ticks++;
-      // Slow down gradually toward the end
-      const nextInterval = interval + (ticks / totalTicks) * 55;
-      setTimeout(() => spin(nextInterval), interval);
-    };
+        el.classList.add('dice-spin');
+        ticks++;
+        // Slow down gradually toward the end
+        const nextInterval = interval + (ticks / totalTicks) * 55;
+        setTimeout(() => spin(nextInterval), interval);
+      };
 
-    spin(startInterval);
+      spin(startInterval);
+    });
   }
 
   /** Add a line to the event log */
