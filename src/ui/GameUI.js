@@ -1,4 +1,4 @@
-import { PLAYER_CONFIG } from '../engine/constants.js';
+import { PLAYER_CONFIG, SELECTABLE_ANIMALS } from '../engine/constants.js';
 
 /**
  * Manages the HTML/CSS overlay UI:
@@ -23,22 +23,25 @@ export class GameUI {
     return this;
   }
 
-  /** Show the player-count setup screen */
+  /** Show the player-count setup screen (step 1) */
   showSetup() {
+    this._step1.classList.remove('hidden');
+    this._step2.classList.add('hidden');
     this._setupOverlay.classList.remove('hidden');
     this._hud.classList.add('hidden');
   }
 
   /** Hide setup screen and show HUD */
-  showHUD(playerCount) {
+  showHUD(playerConfigs) {
     this._setupOverlay.classList.add('hidden');
     this._hud.classList.remove('hidden');
-    this._buildScoreboard(playerCount);
+    this._buildScoreboard(playerConfigs);
   }
 
   /** Update the active-player indicator */
   setActivePlayer(player) {
-    this._playerNameEl.textContent  = player.name;
+    const animal = player.animal ? `${player.animal} ` : '';
+    this._playerNameEl.textContent  = `${animal}${player.name}`;
     this._playerNameEl.style.color  = player.hexStr;
     this._rollBtn.disabled          = false;
     this._rollBtn.style.borderColor = player.hexStr;
@@ -91,9 +94,11 @@ export class GameUI {
     this._root.innerHTML = `
       <!-- Setup overlay -->
       <div id="setup-overlay" class="overlay">
-        <div class="setup-card glass-card">
+
+        <!-- Step 1: player count -->
+        <div id="setup-step1" class="setup-card glass-card">
           <h1 class="game-title">🌿 Snakes &amp; Ladders 3D</h1>
-          <p class="subtitle">Select number of players</p>
+          <p class="subtitle">How many players?</p>
           <div class="player-btns">
             ${[2, 3, 4].map((n) => `
               <button class="player-count-btn btn-glow" data-count="${n}">
@@ -101,6 +106,18 @@ export class GameUI {
               </button>`).join('')}
           </div>
         </div>
+
+        <!-- Step 2: animal picker per player -->
+        <div id="setup-step2" class="setup-card glass-card hidden" style="max-width:560px">
+          <div class="step2-header">
+            <button id="back-btn" class="back-btn btn-glow">← Back</button>
+            <h2 class="game-title" style="font-size:1.6rem">Choose your animals 🐾</h2>
+          </div>
+          <p class="subtitle">Each player picks a unique animal</p>
+          <div id="player-slots"></div>
+          <button id="start-game-btn" class="btn-glow start-btn" disabled>Start Game 🌿</button>
+        </div>
+
       </div>
 
       <!-- HUD -->
@@ -146,6 +163,8 @@ export class GameUI {
     `;
 
     this._setupOverlay = document.getElementById('setup-overlay');
+    this._step1        = document.getElementById('setup-step1');
+    this._step2        = document.getElementById('setup-step2');
     this._hud          = document.getElementById('hud');
     this._playerNameEl = document.getElementById('player-name');
     this._diceEl       = document.getElementById('dice-face');
@@ -154,10 +173,30 @@ export class GameUI {
     this._winnerModal  = document.getElementById('winner-modal');
     this._logList      = document.getElementById('event-log');
 
-    // Setup player-count buttons
+    // Step 1: player count → show step 2 animal picker
     this._setupOverlay.querySelectorAll('.player-count-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        this._callbacks.playerCountSelected?.(Number(btn.dataset.count));
+        this._pendingCount = Number(btn.dataset.count);
+        this._pendingAnimals = new Array(this._pendingCount).fill(null);
+        this._buildAnimalPicker(this._pendingCount);
+        this._step1.classList.add('hidden');
+        this._step2.classList.remove('hidden');
+      });
+    });
+
+    // Step 2: Back button
+    document.getElementById('back-btn').addEventListener('click', () => {
+      this._step2.classList.add('hidden');
+      this._step1.classList.remove('hidden');
+      this._pendingCount   = null;
+      this._pendingAnimals = [];
+    });
+
+    // Step 2: Start Game
+    document.getElementById('start-game-btn').addEventListener('click', () => {
+      this._callbacks.gameStarted?.({
+        count:   this._pendingCount,
+        animals: this._pendingAnimals.slice(),
       });
     });
 
@@ -169,18 +208,71 @@ export class GameUI {
     // Restart button
     document.getElementById('restart-btn').addEventListener('click', () => {
       this._winnerModal.classList.add('hidden');
+      // Reset step 1
+      this._step1.classList.remove('hidden');
+      this._step2.classList.add('hidden');
       this._callbacks.restart?.();
     });
   }
 
-  _buildScoreboard(playerCount) {
+  _buildAnimalPicker(count) {
+    const slotsEl  = document.getElementById('player-slots');
+    const startBtn = document.getElementById('start-game-btn');
+    slotsEl.innerHTML = '';
+    this._pendingAnimals = new Array(count).fill(null);
+
+    PLAYER_CONFIG.slice(0, count).forEach((cfg, idx) => {
+      const slot = document.createElement('div');
+      slot.className = 'animal-slot';
+      slot.innerHTML = `
+        <div class="slot-header">
+          <span class="score-dot" style="background:${cfg.hexStr};width:14px;height:14px;border-radius:50%;display:inline-block"></span>
+          <span style="color:${cfg.hexStr};font-weight:700;margin-left:6px">${cfg.name}</span>
+          <span class="chosen-animal" id="chosen-${idx}">— pick one</span>
+        </div>
+        <div class="animal-grid">
+          ${SELECTABLE_ANIMALS.map((a) => `
+            <button class="animal-btn" data-player="${idx}" data-emoji="${a.emoji}" title="${a.name}">
+              ${a.emoji}
+            </button>`).join('')}
+        </div>
+      `;
+      slotsEl.appendChild(slot);
+    });
+
+    // Animal selection
+    slotsEl.querySelectorAll('.animal-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const playerIdx = Number(btn.dataset.player);
+        const emoji     = btn.dataset.emoji;
+
+        // Prevent two players picking the same animal
+        if (this._pendingAnimals.some((a, i) => a === emoji && i !== playerIdx)) return;
+
+        this._pendingAnimals[playerIdx] = emoji;
+
+        // Highlight selected within this player slot
+        btn.closest('.animal-grid').querySelectorAll('.animal-btn').forEach((b) => {
+          b.classList.toggle('selected', b === btn);
+        });
+
+        document.getElementById(`chosen-${playerIdx}`).textContent = emoji;
+
+        // Enable start only when all players have chosen
+        startBtn.disabled = this._pendingAnimals.some((a) => a === null);
+      });
+    });
+  }
+
+  _buildScoreboard(playerConfigs) {
     const list = document.getElementById('score-list');
     list.innerHTML = '';
-    PLAYER_CONFIG.slice(0, playerCount).forEach((cfg) => {
+    playerConfigs.forEach((cfg) => {
       const li = document.createElement('li');
       li.id    = `score-player-${cfg.id}`;
       li.innerHTML = `
         <span class="score-dot" style="background:${cfg.hexStr}"></span>
+        <span class="score-animal">${cfg.animal ?? ''}</span>
         <span class="score-label">${cfg.name}</span>
         <span class="score-pos">Sq. 0</span>
       `;

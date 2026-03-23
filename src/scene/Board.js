@@ -4,17 +4,9 @@ import { squareToWorld } from '../utils/boardMath.js';
 
 const BOARD_W    = BOARD_SIZE * CELL_SIZE;
 const BORDER_COL = 0x1a3d1a;
-const TEX_SIZE   = 256;  // canvas resolution per tile
+const TEX_SIZE   = 256;
 
-// ─── Rainforest animal palette (cycles across all 100 tiles) ─────────────────
-const ANIMALS = [
-  '🦜', '🐸', '🦋', '🐒', '🦎',
-  '🐊', '🦩', '🐆', '🦚', '🪲',
-  '🦁', '🐛', '🌺', '🌿', '🦧',
-  '🐝', '🦗', '🦜', '🦟', '🌴',
-];
-
-// Row background colours — gradient from jungle floor (bottom) to canopy (top)
+// Row background colours — jungle floor (bottom) to canopy (top)
 const ROW_COLORS = [
   '#2d5016', '#365d1a', '#3e6a1e', '#467723', '#4d8328',
   '#3d8c3a', '#2d9450', '#1e9465', '#148477', '#0d7488',
@@ -31,7 +23,7 @@ export function createBoard() {
   group.name  = 'board';
 
   _addBorderSlab(group);
-  _addAnimalTiles(group);
+  _addTiles(group);
   _addCellHighlights(group);
   _addStartFinishMarkers(group);
 

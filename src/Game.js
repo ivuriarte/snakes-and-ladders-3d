@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 
 import { GameEngine }         from './engine/GameEngine.js';
-import { GameState }          from './engine/constants.js';
+import { GameState, PLAYER_CONFIG } from './engine/constants.js';
 import { createBoard }        from './scene/Board.js';
 import { buildEnvironment, tickEnvironment } from './scene/Environment.js';
 import { buildSnakesAndLadders } from './scene/SnakesLadders.js';
@@ -122,13 +122,19 @@ export class Game {
 
   _bindSetup() {
     this._ui.showSetup();
-    this._ui.on('playerCountSelected', (count) => this._startGame(count));
+    this._ui.on('gameStarted', ({ count, animals }) => this._startGame(count, animals));
     this._ui.on('restart', () => this._restartGame());
   }
 
-  _startGame(playerCount) {
+  _startGame(playerCount, animals = []) {
+    // Build player configs enriched with chosen animal
+    this._playerConfigs = PLAYER_CONFIG.slice(0, playerCount).map((cfg, i) => ({
+      ...cfg,
+      animal: animals[i] ?? '🦁',
+    }));
+
     // Clear any previous scene objects except persistent environment
-    ['board', 'snakes', 'ladders', 'playerPieces'].forEach((n) => {
+    ['board', 'snakes', 'ladders'].forEach((n) => {
       const obj = this._scene.getObjectByName(n);
       if (obj) this._scene.remove(obj);
     });
@@ -148,13 +154,15 @@ export class Game {
 
     buildSnakesAndLadders(this._scene);
 
-    this._pieces = new PlayerPieces(this._scene, playerCount);
+    this._pieces = new PlayerPieces(this._scene, this._playerConfigs);
     this._engine = new GameEngine(playerCount);
+    // Attach animal to engine player objects
+    this._engine.players.forEach((p, i) => { p.animal = animals[i] ?? '🦁'; });
 
     this._bindEngineEvents();
     // Wire roll button to current engine instance
     this._ui.on('rollDice', () => { this._engine?.rollDice(); });
-    this._ui.showHUD(playerCount);
+    this._ui.showHUD(this._playerConfigs);
     this._ui.setActivePlayer(this._engine.currentPlayer);
     this._pieces.highlightActive(this._engine.currentPlayer.id);
 
@@ -169,7 +177,8 @@ export class Game {
   }
 
   _restartGame() {
-    this._startGame(this._engine.players.length);
+    const animals = this._engine.players.map((p) => p.animal);
+    this._startGame(this._engine.players.length, animals);
   }
 
   // ─── Engine event bindings ─────────────────────────────────────────────────

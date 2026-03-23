@@ -1,35 +1,31 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
-import { PLAYER_CONFIG } from '../engine/constants.js';
 import { squareToWorld, buildHopPath } from '../utils/boardMath.js';
 import {
   HOP_HEIGHT, HOP_DURATION, SLIDE_DURATION,
 } from '../engine/constants.js';
 
-const PIECE_RADIUS  = 0.26;
-const PIECE_HEIGHT  = 0.60;
-const PIECE_Y_BASE  = 0.30;  // resting height on tile surface
+const PIECE_Y_BASE = 0.30;  // resting height on tile surface
 
 /**
- * Manages the 3D pawn meshes for all players.
+ * Manages the 3D animal-piece meshes for all players.
  */
 export class PlayerPieces {
   /**
    * @param {THREE.Scene} scene
-   * @param {number}      playerCount
+   * @param {Array<{id,color,hexStr,animal}>} playerConfigs
    */
-  constructor(scene, playerCount) {
+  constructor(scene, playerConfigs) {
     this._scene   = scene;
-    this._pieces  = [];         // THREE.Group per player
-    this._glows   = [];         // glow ring meshes
+    this._pieces  = [];   // THREE.Group per player
+    this._glows   = [];   // glow ring meshes
 
-    PLAYER_CONFIG.slice(0, playerCount).forEach((cfg) => {
-      const group = _buildPiece(cfg);
-      group.position.copy(this._startPosition(cfg.id, playerCount));
+    playerConfigs.forEach((cfg) => {
+      const group = _buildAnimalPiece(cfg);
+      group.position.copy(this._startPosition(cfg.id, playerConfigs.length));
       scene.add(group);
       this._pieces.push(group);
 
-      // Glow disc under piece
       const glow = _buildGlow(cfg.color);
       scene.add(glow);
       this._glows.push(glow);
@@ -181,46 +177,69 @@ export class PlayerPieces {
   }
 }
 
-// ─── Piece geometry factory ───────────────────────────────────────────────────
-function _buildPiece(cfg) {
+// ─── Animal piece factory ────────────────────────────────────────────────────
+function _buildAnimalPiece(cfg) {
   const group = new THREE.Group();
   group.name  = `piece_${cfg.id}`;
 
-  // Base disc
-  const baseGeo = new THREE.CylinderGeometry(PIECE_RADIUS, PIECE_RADIUS * 1.2, 0.12, 20);
-  const baseMat = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.4, metalness: 0.5 });
-  const base    = new THREE.Mesh(baseGeo, baseMat);
+  // ── Colored base platform ──
+  const baseGeo = new THREE.CylinderGeometry(0.42, 0.50, 0.14, 24);
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: cfg.color, roughness: 0.38, metalness: 0.55,
+  });
+  const base = new THREE.Mesh(baseGeo, baseMat);
   base.castShadow = true;
   group.add(base);
 
-  // Body
-  const bodyGeo = new THREE.CylinderGeometry(PIECE_RADIUS * 0.65, PIECE_RADIUS, PIECE_HEIGHT * 0.55, 12);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.35, metalness: 0.55 });
-  const body    = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.12 + PIECE_HEIGHT * 0.275;
-  body.castShadow = true;
-  group.add(body);
+  // ── Thin stem ──
+  const stemGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.30, 10);
+  const stemMat = new THREE.MeshStandardMaterial({
+    color: cfg.color, roughness: 0.4, metalness: 0.5,
+  });
+  const stem = new THREE.Mesh(stemGeo, stemMat);
+  stem.position.y = 0.07 + 0.15;
+  stem.castShadow = true;
+  group.add(stem);
 
-  // Head sphere
-  const headGeo = new THREE.SphereGeometry(PIECE_RADIUS * 0.7, 16, 16);
-  const headMat = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.25, metalness: 0.65 });
-  const head    = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 0.12 + PIECE_HEIGHT * 0.72;
-  head.castShadow = true;
-  group.add(head);
+  // ── Emoji billboard (canvas → sprite) ──
+  const canvas  = document.createElement('canvas');
+  canvas.width  = 192;
+  canvas.height = 192;
+  const ctx     = canvas.getContext('2d');
 
-  // Rim emissive ring
-  const rimGeo = new THREE.TorusGeometry(PIECE_RADIUS * 0.72, 0.045, 8, 24);
+  // Circular coloured background
+  ctx.fillStyle = cfg.hexStr;
+  ctx.beginPath();
+  ctx.arc(96, 96, 90, 0, Math.PI * 2);
+  ctx.fill();
+
+  // White ring
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth   = 8;
+  ctx.stroke();
+
+  // Animal emoji
+  ctx.font         = '108px serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(cfg.animal, 96, 100);
+
+  const tex      = new THREE.CanvasTexture(canvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: tex, depthWrite: true });
+  const sprite   = new THREE.Sprite(spriteMat);
+  sprite.scale.set(0.82, 0.82, 0.82);
+  sprite.position.y = 0.07 + 0.30 + 0.41;   // top of stem
+  group.add(sprite);
+
+  // ── Emissive rim on base ──
+  const rimGeo = new THREE.TorusGeometry(0.44, 0.048, 8, 32);
   const rimMat = new THREE.MeshStandardMaterial({
-    color:     cfg.color,
-    emissive:  cfg.color,
-    emissiveIntensity: 0.9,
-    roughness: 0.2,
-    metalness: 0.8,
+    color: cfg.color, emissive: cfg.color,
+    emissiveIntensity: 1.1, roughness: 0.2, metalness: 0.8,
   });
   const rim = new THREE.Mesh(rimGeo, rimMat);
   rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.12 + PIECE_HEIGHT * 0.52;
+  rim.position.y = 0.075;
   group.add(rim);
 
   return group;

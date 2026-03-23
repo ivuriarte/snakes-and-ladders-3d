@@ -263,6 +263,85 @@ html, body {
 .win-sub { color: var(--text-dim); margin-bottom: 2rem; }
 .restart-btn { font-size: 1.1rem; padding: 0.7em 2.5em; }
 
+/* ─── Animal picker (step 2) ──────────────────────────────── */
+.step2-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.3rem;
+}
+.step2-header .game-title { margin: 0; flex: 1; }
+.back-btn {
+  font-size: 0.85rem;
+  padding: 0.45em 1.1em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.start-btn {
+  display: block;
+  margin: 1.4rem auto 0;
+  font-size: 1.1rem;
+  padding: 0.7em 2.2em;
+}
+
+.animal-slot {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.slot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.9rem;
+}
+
+.chosen-animal {
+  margin-left: auto;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.animal-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.animal-btn {
+  pointer-events: all;
+  cursor: pointer;
+  background: rgba(255,255,255,0.06);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-size: 1.45rem;
+  line-height: 1;
+  padding: 0.3em 0.35em;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.animal-btn:hover {
+  background: rgba(46,204,113,0.15);
+  border-color: var(--green-light);
+  transform: scale(1.12);
+}
+.animal-btn.selected {
+  background: rgba(46,204,113,0.22);
+  border-color: var(--green-light);
+  box-shadow: 0 0 10px rgba(46,204,113,0.5);
+}
+
+/* Scoreboard animal glyph */
+.score-animal {
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 600px) {
   .scoreboard, .log-panel { display: none; }

@@ -37,6 +37,26 @@ export const PLAYER_CONFIG = Object.freeze([
   { id: 3, name: 'Player 4', color: 0xf39c12, hexStr: '#f39c12', label: 'P4' },
 ]);
 
+// ─── Selectable animals (player pieces) ─────────────────────────────────────
+export const SELECTABLE_ANIMALS = [
+  { emoji: '🦁', name: 'Lion'      },
+  { emoji: '🐯', name: 'Tiger'     },
+  { emoji: '🐸', name: 'Frog'      },
+  { emoji: '🦜', name: 'Parrot'    },
+  { emoji: '🐒', name: 'Monkey'    },
+  { emoji: '🦊', name: 'Fox'       },
+  { emoji: '🐺', name: 'Wolf'      },
+  { emoji: '🐘', name: 'Elephant'  },
+  { emoji: '🦩', name: 'Flamingo'  },
+  { emoji: '🐆', name: 'Leopard'   },
+  { emoji: '🦋', name: 'Butterfly' },
+  { emoji: '🐊', name: 'Croc'      },
+  { emoji: '🦀', name: 'Crab'      },
+  { emoji: '🐢', name: 'Turtle'    },
+  { emoji: '🦉', name: 'Owl'       },
+  { emoji: '🐍', name: 'Snake'     },
+];
+
 // ─── Game States ─────────────────────────────────────────────────────────────
 export const GameState = Object.freeze({
   SETUP:      'SETUP',
