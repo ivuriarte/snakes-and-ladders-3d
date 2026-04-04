@@ -38,8 +38,6 @@ export class GameUI {
     this._overlayStep2.classList.add('hidden');
     this._hud.classList.remove('hidden');
     this._buildScoreboard(playerConfigs);
-    // Clear log from any previous game
-    if (this._logList) this._logList.innerHTML = '';
   }
 
   /** Update the active-player indicator */
@@ -62,7 +60,7 @@ export class GameUI {
     let ticks = 0;
     const totalTicks = 14;          // number of random flips
     const startInterval = 60;       // ms between flips (speeds up)
-    el.classList.remove('dice-spin', 'dice-land');
+    el.classList.remove('dice-pop');
 
     return new Promise((resolve) => {
       const spin = (interval) => {
@@ -307,7 +305,7 @@ export class GameUI {
           b.classList.toggle('selected', b === btn);
         });
 
-        this._audio?.playAnimalSelect();
+        this._audio?.playClick();
         document.getElementById(`chosen-${playerIdx}`).textContent = emoji;
 
         // Enable start only when all players have chosen

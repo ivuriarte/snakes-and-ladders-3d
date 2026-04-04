@@ -138,7 +138,6 @@ export class Game {
     }));
 
     // Clear any previous scene objects except persistent environment
-    if (this._engine) this._engine.removeAllListeners();
     ['board', 'snakes', 'ladders'].forEach((n) => {
       const obj = this._scene.getObjectByName(n);
       if (obj) this._scene.remove(obj);
@@ -175,47 +174,25 @@ export class Game {
       this._ui.updateScore(p);
     });
 
-    // Start background music + ambient soundscape
+    // Start background music
     this._audio.startMusic();
-    this._audio.startAmbience();
-    this._audio.playGameStart();
 
     // Start render loop if not running
     if (!this._rafId) this._loop();
   }
 
   _restartGame() {
-    if (!this._engine) return;
     const animals = this._engine.players.map((p) => p.animal);
     this._startGame(this._engine.players.length, animals);
   }
 
-  /** Recursively dispose Three.js geometry, materials, and textures. */
-  _disposeObject3D(obj) {
-    obj.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        mats.forEach((m) => {
-          Object.values(m).forEach((v) => { if (v?.isTexture) v.dispose(); });
-          m.dispose();
-        });
-      }
-    });
-  }
-
   _endGame() {
-    // Cancel render loop and clean up
-    if (this._rafId) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
-    }
+    // Stop engine and clear scene objects so the board is clean on next start
     this._engine = null;
     this._audio.stopMusic();
-    this._audio.stopAmbience();
     ['board', 'snakes', 'ladders'].forEach((n) => {
       const obj = this._scene.getObjectByName(n);
-      if (obj) { this._disposeObject3D(obj); this._scene.remove(obj); }
+      if (obj) this._scene.remove(obj);
     });
     if (this._pieces) {
       this._pieces._pieces.forEach((p) => this._scene.remove(p));
@@ -236,14 +213,9 @@ export class Game {
       eng.resolveMove();
     });
 
-    eng.on('playerMoved', async ({ player, from, to }) => {
+    eng.on('playerMoved', async ({ player, from, to, via }) => {
       this._ui.lockInteraction();
-      if (to === from && from > 0) {
-        // Overshoot — must land exactly on 100, piece stays
-        this._ui.log(`⚠️ ${player.name} needs exactly ${100 - from} to win!`);
-      } else {
-        await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to, () => this._audio?.playHop());
-      }
+      await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to, () => this._audio?.playHop(), via);
       this._ui.updateScore(player);
       // Now that the hop animation is done, check snakes/ladders/win
       eng.resolveSpecials();
