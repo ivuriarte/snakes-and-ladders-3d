@@ -72,16 +72,14 @@ export class GameEngine extends EventEmitter {
 
     const player = this.currentPlayer;
     const from   = player.position;
-    let   to     = from + this._lastRoll;
+    const raw    = from + this._lastRoll;
 
-    // Overshoot rule – bounce back from 100
-    if (to > 100) {
-      to = 100 - (to - 100);
-    }
+    // Standard rule: must land *exactly* on 100 to win.
+    // Overshoot → piece stays put this turn (no "bounce back to same square" frustration).
+    const to = raw > 100 ? from : raw;
 
-    const via = to !== from + this._lastRoll ? 100 : undefined; // overshoot peak
     this._setState(GameState.MOVING);
-    this.emit('playerMoved', { player, from, to, via });
+    this.emit('playerMoved', { player, from, to });
     player.position = to;
   }
 

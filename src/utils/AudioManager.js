@@ -9,13 +9,20 @@
  */
 export class AudioManager {
   constructor() {
-    this._ctx       = null;
-    this._master    = null;  // master gain
-    this._musicBus  = null;  // music sub-mix
-    this._sfxBus    = null;  // sfx sub-mix
-    this._reverb    = null;  // shared convolver reverb
-    this._muted     = false;
-    this._loopTimer = null;
+    this._ctx         = null;
+    this._master      = null;  // master gain
+    this._musicBus    = null;  // music sub-mix
+    this._sfxBus      = null;  // sfx sub-mix
+    this._ambienceBus = null;  // ambient soundscape sub-mix
+    this._reverb      = null;  // shared convolver reverb
+    this._muted       = false;
+    this._loopTimer   = null;
+    // Ambience
+    this._windSrc     = null;  // wind noise buffer source
+    this._windGain    = null;
+    this._insectOscs  = [];    // insect chorus oscillators
+    this._birdTimer   = null;
+    this._ambiPlaying = false;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -52,6 +59,11 @@ export class AudioManager {
     this._sfxBus.connect(reverbSend);
     reverbSend.connect(this._reverb);
     this._reverb.connect(this._master);
+
+    // Ambience bus — jungle sounds, very quiet under music
+    this._ambienceBus = this._ctx.createGain();
+    this._ambienceBus.gain.value = 0;
+    this._ambienceBus.connect(this._master);
   }
 
   /** Synthesise a short reverb impulse response. */
@@ -287,6 +299,210 @@ export class AudioManager {
     const t = this._ctx.currentTime;
     this._osc(659.25, t,       0.10, 0.10, this._sfxBus, 'sine');
     this._osc(783.99, t + 0.1, 0.10, 0.10, this._sfxBus, 'sine');
+  }
+
+  /** Game start fanfare — triumphant ascending three-chord progression. */
+  playGameStart() {
+    if (!this._ready) return;
+    const t = this._ctx.currentTime;
+    // Rising chord stabs: Dm → F → C → G (majors)
+    const stabs = [
+      { dt: 0.00, notes: [293.66, 369.99, 440.00] },  // D minor
+      { dt: 0.22, notes: [349.23, 440.00, 523.25] },  // F major
+      { dt: 0.44, notes: [261.63, 329.63, 392.00] },  // C major
+      { dt: 0.70, notes: [392.00, 493.88, 587.33, 740.00] }, // G major + 9th
+    ];
+    stabs.forEach(({ dt, notes }) => {
+      notes.forEach((f) => {
+        this._osc(f, t + dt, 0.28, 0.18, this._sfxBus, 'sine');
+        this._osc(f * 2, t + dt, 0.14, 0.04, this._sfxBus, 'triangle');
+      });
+    });
+    // Sparkle run up after the final chord
+    [392, 494, 587, 659, 784, 988, 1175, 1319].forEach((f, i) => {
+      this._osc(f, t + 0.72 + i * 0.07, 0.30, 0.09, this._sfxBus, 'sine');
+    });
+  }
+
+  /**
+   * Overshoot bounce — quick ascending whoosh + descending "boing"
+   * played when a piece overshoots square 100 and bounces back.
+   */
+  playOvershoot() {
+    if (!this._ready) return;
+    const ctx = this._ctx;
+    const t   = ctx.currentTime;
+    // Whoosh up
+    const osc1 = ctx.createOscillator();
+    const g1   = ctx.createGain();
+    osc1.type  = 'sine';
+    osc1.frequency.setValueAtTime(400, t);
+    osc1.frequency.exponentialRampToValueAtTime(1400, t + 0.18);
+    g1.gain.setValueAtTime(0.28, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    osc1.connect(g1); g1.connect(this._sfxBus);
+    osc1.start(t); osc1.stop(t + 0.25);
+    // Boing down
+    const osc2 = ctx.createOscillator();
+    const g2   = ctx.createGain();
+    osc2.type  = 'sine';
+    osc2.frequency.setValueAtTime(1100, t + 0.20);
+    osc2.frequency.exponentialRampToValueAtTime(180, t + 0.55);
+    g2.gain.setValueAtTime(0.24, t + 0.20);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.60);
+    osc2.connect(g2); g2.connect(this._sfxBus);
+    osc2.start(t + 0.20); osc2.stop(t + 0.65);
+  }
+
+  /** Warm bell tone for animal selection confirmation. */
+  playAnimalSelect() {
+    if (!this._ready) return;
+    const t = this._ctx.currentTime;
+    // Fundamental + two partials for a metallic bell
+    this._osc(880.00, t,        0.55, 0.16, this._sfxBus, 'sine');
+    this._osc(1760.0, t + 0.01, 0.35, 0.06, this._sfxBus, 'sine');
+    this._osc(2640.0, t + 0.01, 0.20, 0.03, this._sfxBus, 'triangle');
+  }
+
+  // ── Ambient Jungle Soundscape ──────────────────────────────────────────────
+
+  /**
+   * Start the looping procedural jungle ambience:
+   *  - Filtered wind noise with slow tremolo
+   *  - Insect chorus (beating sine drones)
+   *  - Random bird tweets
+   * Safe to call multiple times — ignored if already playing.
+   */
+  startAmbience() {
+    if (!this._ready || this._ambiPlaying) return;
+    this._ambiPlaying = true;
+
+    // Fade ambience bus in slowly
+    this._ambienceBus.gain.setValueAtTime(0, this._ctx.currentTime);
+    this._ambienceBus.gain.linearRampToValueAtTime(0.18, this._ctx.currentTime + 4.0);
+
+    this._startWind();
+    this._startInsects();
+    this._scheduleBirdTweet();
+  }
+
+  stopAmbience() {
+    if (!this._ctx || !this._ambiPlaying) return;
+    this._ambiPlaying = false;
+
+    // Fade out ambience bus
+    this._ambienceBus.gain.setTargetAtTime(0, this._ctx.currentTime, 0.8);
+
+    // Stop wind sources (buf source + LFO)
+    if (this._windNodes) {
+      this._windNodes.forEach((n) => { try { n.stop(); } catch (_) { /* already stopped */ } });
+      this._windNodes = null;
+    }
+    this._windSrc = null;
+
+    this._insectOscs.forEach((o) => { try { o.stop(); } catch (_) { /* ok */ } });
+    this._insectOscs = [];
+
+    clearTimeout(this._birdTimer);
+    this._birdTimer = null;
+  }
+
+  /** Continuous wind layer: bandpass-filtered noise with LFO tremolo. */
+  _startWind() {
+    const ctx = this._ctx;
+    const t   = ctx.currentTime;
+
+    // Long noise buffer (10 s) looped
+    const dur = 10;
+    const buf = ctx.createBuffer(2, ctx.sampleRate * dur, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+
+    const src  = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop   = true;
+
+    // Multi-band shape: keep the low-mid "whoosh"
+    const lo = ctx.createBiquadFilter(); lo.type = 'highpass';  lo.frequency.value = 120;
+    const hi = ctx.createBiquadFilter(); hi.type = 'lowpass';   hi.frequency.value = 600;
+
+    // Slow tremolo LFO (0.12 Hz)
+    const lfo  = ctx.createOscillator();
+    const lfoG = ctx.createGain();
+    lfo.frequency.value = 0.12;
+    lfoG.gain.value     = 0.12;
+    const windG = ctx.createGain();
+    windG.gain.value    = 0.55;
+    lfo.connect(lfoG);
+    lfoG.connect(windG.gain);
+
+    src.connect(lo); lo.connect(hi); hi.connect(windG);
+    windG.connect(this._ambienceBus);
+
+    lfo.start(t);
+    src.start(t);
+
+    this._windSrc = src;
+    // Store refs to stop them
+    src.onended = null;
+    this._windNodes = [lfo, src];
+  }
+
+  /** Insect chorus: 4 slightly detuned sine drones creating beating effect. */
+  _startInsects() {
+    const ctx   = this._ctx;
+    const t     = ctx.currentTime;
+    const freqs = [320, 323.5, 327, 330.8]; // close pitches → psychoacoustic beat (≈3 Hz)
+
+    // Keep references to the per-oscillator gain nodes for AM wiring
+    const insectGains = [];
+    freqs.forEach((f) => {
+      const osc = ctx.createOscillator();
+      osc.type  = 'sine';
+      osc.frequency.value = f;
+      const g   = ctx.createGain();
+      g.gain.value = 0.06;
+      osc.connect(g);
+      g.connect(this._ambienceBus);
+      osc.start(t);
+      this._insectOscs.push(osc);
+      insectGains.push(g);
+    });
+
+    // AM modulation at 3.2 Hz — modulates the gain of every insect drone
+    const amLfo  = ctx.createOscillator();
+    const amGain = ctx.createGain();
+    amLfo.frequency.value = 3.2;
+    amGain.gain.value     = 0.04;  // modulation depth
+    amLfo.connect(amGain);
+    insectGains.forEach((g) => amGain.connect(g.gain));
+    amLfo.start(t);
+    this._insectOscs.push(amLfo);
+  }
+
+  /**
+   * Schedule a random bird tweet at a random future time, then reschedule.
+   * Creates short melodic 2-4 note fragments.
+   */
+  _scheduleBirdTweet() {
+    if (!this._ambiPlaying) return;
+    const delay = 3500 + Math.random() * 8000; // 3.5–11.5 s between tweets
+    this._birdTimer = setTimeout(() => {
+      if (!this._ambiPlaying || !this._ready) return;
+      const ctx   = this._ctx;
+      const t     = ctx.currentTime;
+      const base  = 900 + Math.random() * 1200; // random bird pitch range
+      const notes = Math.floor(2 + Math.random() * 3); // 2–4 notes
+      for (let i = 0; i < notes; i++) {
+        const freq = base * (0.9 + Math.random() * 0.35);
+        const when = t + i * (0.075 + Math.random() * 0.08);
+        const dur  = 0.04 + Math.random() * 0.06;
+        this._osc(freq, when, dur, 0.042, this._ambienceBus, 'sine');
+      }
+      this._scheduleBirdTweet();
+    }, delay);
   }
 
   // ── Mute toggle ────────────────────────────────────────────────────────────
