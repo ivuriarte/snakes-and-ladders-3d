@@ -34,14 +34,27 @@ export function squareToWorld(square, yOffset = 0) {
  * Build an array of intermediate world positions for animating piece movement
  * square-by-square (hop path).
  *
- * @param {number} from   start square (0 = off-board)
- * @param {number} to     destination square (1-100)
+ * @param {number} from        start square (0 = off-board)
+ * @param {number} to          destination square (1-100)
  * @param {number} [y=0]
+ * @param {number} [via]       optional overshoot peak square (e.g. 100 when bouncing back)
  * @returns {THREE.Vector3[]}
  */
-export function buildHopPath(from, to, y = 0) {
+export function buildHopPath(from, to, y = 0, via = undefined) {
   const path = [];
-  const dir  = from < to ? 1 : -1;
+
+  if (via !== undefined) {
+    // Forward from `from` up to `via`, then backward to `to`
+    for (let s = from + 1; s <= via; s++) {
+      path.push(squareToWorld(s, y));
+    }
+    for (let s = via - 1; s >= to; s--) {
+      path.push(squareToWorld(s, y));
+    }
+    return path;
+  }
+
+  const dir = from < to ? 1 : -1;
   for (let s = from + dir; s !== to + dir; s += dir) {
     path.push(squareToWorld(Math.max(1, s), y));
   }

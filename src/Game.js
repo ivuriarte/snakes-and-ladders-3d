@@ -213,9 +213,9 @@ export class Game {
       eng.resolveMove();
     });
 
-    eng.on('playerMoved', async ({ player, from, to }) => {
+    eng.on('playerMoved', async ({ player, from, to, via }) => {
       this._ui.lockInteraction();
-      await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to, () => this._audio?.playHop());
+      await this._pieces.animateHop(player.id, from === 0 ? 1 : from, to, () => this._audio?.playHop(), via);
       this._ui.updateScore(player);
       // Now that the hop animation is done, check snakes/ladders/win
       eng.resolveSpecials();

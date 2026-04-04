@@ -20,13 +20,22 @@ export class EventEmitter {
 
   /** @param {string} event @param {Function} listener */
   off(event, listener) {
-    this._listeners.get(event)?.delete(listener);
+    const bucket = this._listeners.get(event);
+    if (!bucket) return this;
+    // Match the stored listener directly OR its _original (once wrappers)
+    for (const fn of bucket) {
+      if (fn === listener || fn._original === listener) {
+        bucket.delete(fn);
+        break;
+      }
+    }
     return this;
   }
 
   /** @param {string} event @param {Function} listener — fires once then removes itself */
   once(event, listener) {
     const wrapper = (...args) => { listener(...args); this.off(event, wrapper); };
+    wrapper._original = listener;
     return this.on(event, wrapper);
   }
 

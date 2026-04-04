@@ -23,7 +23,7 @@ export class PlayerPieces {
 
     playerConfigs.forEach((cfg) => {
       const group = _buildAnimalPiece(cfg);
-      group.position.copy(this._startPosition(cfg.id, playerConfigs.length));
+      group.position.copy(this._startPosition(cfg.id));
       scene.add(group);
       this._pieces.push(group);
 
@@ -49,10 +49,11 @@ export class PlayerPieces {
   /**
    * Animate piece hopping square-by-square.
    * @param {Function} [onStep]  Optional callback fired on each square landing.
+   * @param {number}   [via]     Overshoot peak square (e.g. 100 when bouncing back).
    * @returns {Promise<void>}
    */
-  animateHop(playerId, from, to, onStep) {
-    const path = buildHopPath(from, to, PIECE_Y_BASE);
+  animateHop(playerId, from, to, onStep, via) {
+    const path = buildHopPath(from, to, PIECE_Y_BASE, via);
     if (path.length === 0) return Promise.resolve();
 
     const piece = this._pieces[playerId];
@@ -99,9 +100,10 @@ export class PlayerPieces {
     const piece = this._pieces[playerId];
     const start = squareToWorld(from, PIECE_Y_BASE);
     const end   = squareToWorld(to,   PIECE_Y_BASE);
+    const dist  = start.distanceTo(end);
     const mid   = new THREE.Vector3(
       (start.x + end.x) / 2,
-      PIECE_Y_BASE + Math.abs(end.y - start.y) + 3,
+      PIECE_Y_BASE + dist * 0.35 + 1.5,
       (start.z + end.z) / 2,
     );
 
@@ -161,7 +163,7 @@ export class PlayerPieces {
 
   // ─── Private ─────────────────────────────────────────────────────────────
 
-  _startPosition(id, count) {
+  _startPosition(id) {
     // Park pieces off-board at corners before game starts
     const offsets = [
       new THREE.Vector3(-12, PIECE_Y_BASE,  12),

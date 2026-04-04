@@ -79,8 +79,9 @@ export class GameEngine extends EventEmitter {
       to = 100 - (to - 100);
     }
 
+    const via = to !== from + this._lastRoll ? 100 : undefined; // overshoot peak
     this._setState(GameState.MOVING);
-    this.emit('playerMoved', { player, from, to });
+    this.emit('playerMoved', { player, from, to, via });
     player.position = to;
   }
 
@@ -137,8 +138,8 @@ export class GameEngine extends EventEmitter {
     this.emit('turnChanged', { player: this.currentPlayer });
   }
 
-  /** Reset to a fresh game. */
-  reset(playerCount = this._playerCount) {
+  /** Reset to a fresh game (same player count). */
+  reset() {
     this._players.forEach((p) => { p.position = 0; p.finished = false; });
     this._turn     = 0;
     this._lastRoll = 0;
